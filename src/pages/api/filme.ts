@@ -7,9 +7,9 @@ import { authOptions } from "./auth/[...nextauth]";
  * Vereinfacht die Erstellung von Prisma-AND/OR-Statements
  */
 const parsePrismaStatement = (
-  value: string | undefined,
   column: string,
-  mode: "equals" | "contains"
+  mode: "equals" | "contains",
+  value: string | undefined
 ) => {
   return value
     ? [
@@ -94,8 +94,8 @@ export default async function handler(
               ...(age || genre
                 ? {
                     AND: [
-                      ...parsePrismaStatement(age, "age", "equals"),
-                      ...parsePrismaStatement(genre, "genre", "equals"),
+                      ...parsePrismaStatement("age", "equals", age),
+                      ...parsePrismaStatement("genre", "equals", genre),
                     ],
                   }
                 : {}),
@@ -103,8 +103,8 @@ export default async function handler(
               ...(query
                 ? {
                     OR: [
-                      ...parsePrismaStatement(query, "title", "contains"),
-                      ...parsePrismaStatement(query, "description", "contains"),
+                      ...parsePrismaStatement("title", "contains", query),
+                      ...parsePrismaStatement("description", "contains", query),
                     ],
                   }
                 : {}),

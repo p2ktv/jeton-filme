@@ -7,7 +7,7 @@ import { authOptions } from "./auth/[...nextauth]";
  * Vereinfacht die Erstellung von Prisma-AND/OR-Statements
  */
 const parsePrismaStatement = (
-  column: string,
+  column: "age" | "genre" | "title" | "description",
   mode: "equals" | "contains",
   value: string | undefined
 ) => {
@@ -22,6 +22,17 @@ const parsePrismaStatement = (
       ]
     : [];
 };
+
+// Interface, um die Struktur der Film-Metadaten zu definieren, die
+// im Request Body/Query erwartet werden
+interface FilmMetadata {
+  title: string;
+  age: string;
+  genre: string;
+  poster: string;
+  description: string;
+  query: string; // Query-Parameter, um nach Filmen zu suchen
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -42,13 +53,7 @@ export default async function handler(
         genre: genreFromBody,
         poster,
         description,
-      }: {
-        title: string;
-        age: string;
-        genre: string;
-        poster: string;
-        description: string;
-      } = req.body;
+      }: Omit<FilmMetadata, "query"> = req.body;
 
       await prisma.film.create({
         data: {
@@ -72,50 +77,46 @@ export default async function handler(
         message: "OK",
       });
     case "GET":
-      const {
-        query,
-        genre,
-        age,
-      }: Partial<{ query: string; genre: string; age: string }> = req.query;
+      const { query, genre, age }: Partial<FilmMetadata> = req.query;
 
-      const filme = await (!query && !genre && !age
-        ? prisma.film.findMany({
-            where: {
-              username: session.user?.name as string,
-            },
-            orderBy: [
-              {
-                createdAt: "desc",
-              },
-            ],
-          })
-        : prisma.film.findMany({
-            where: {
-              ...(age || genre
-                ? {
-                    AND: [
-                      ...parsePrismaStatement("age", "equals", age),
-                      ...parsePrismaStatement("genre", "equals", genre),
-                    ],
-                  }
-                : {}),
+      // Sehr komplexer Query, um entweder:
+      // - alle Filme eines Users zu laden, wenn keine Query-Parameter angegeben sind
+      // - Filme eines Users nach den Query-Parametern zu filtern
+      const filme = await prisma.film.findMany({
+        where: {
+          ...(!query && !genre && !age
+            ? {} // Wenn keine Query-Parameter angegeben sind, wird alles geladen, ohne zusätzliche Filter
+            : {
+                ...(age || genre
+                  ? {
+                      AND: [
+                        ...parsePrismaStatement("age", "equals", age),
+                        ...parsePrismaStatement("genre", "equals", genre),
+                      ],
+                    }
+                  : {}),
 
-              ...(query
-                ? {
-                    OR: [
-                      ...parsePrismaStatement("title", "contains", query),
-                      ...parsePrismaStatement("description", "contains", query),
-                    ],
-                  }
-                : {}),
-              username: session.user?.name as string,
-            },
-            orderBy: [
-              {
-                createdAt: "desc",
-              },
-            ],
-          }));
+                ...(query
+                  ? {
+                      OR: [
+                        ...parsePrismaStatement("title", "contains", query),
+                        ...parsePrismaStatement(
+                          "description",
+                          "contains",
+                          query
+                        ),
+                      ],
+                    }
+                  : {}),
+              }),
+          username: session.user?.name as string, // Nur Filme des aktuellen Benutzers laden
+        },
+        orderBy: [
+          {
+            createdAt: "desc", // Sortiert nach Erstellungsdatum, damit immer die neusten Filme oben angezeigt werden
+          },
+        ],
+      });
 
       return res.status(200).send({
         data: filme ?? [],

@@ -94,7 +94,9 @@ export default function Home({
   useEffect(() => {
     if (!debouncedQuery && !genre && !age && status !== "authenticated") return;
 
-    setLoading(true);
+    if (!loading) {
+      setLoading(true);
+    }
     fetch(
       `http://localhost:3000/api/filme?query=${debouncedQuery}&genre=${genre}&age=${age}`
     )
